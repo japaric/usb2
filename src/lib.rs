@@ -21,6 +21,9 @@ mod desc;
 pub mod device;
 mod feature;
 
+/// Device address assigned by the host; will be in the range 1..=127
+pub type Address = NonZeroU8;
+
 pub type StringIndex = NonZeroU8;
 
 /// Endpoint address
@@ -64,7 +67,7 @@ pub enum StandardRequest {
     /// GET_STATUS
     GetStatus(GetStatus),
     /// SET_ADDRESS
-    SetAddress { address: NonZeroU8 },
+    SetAddress { address: Option<Address> },
     /// SET_CONFIGURATION
     SetConfiguration { value: Option<NonZeroU8> },
     /// SET_DESCRIPTOR
@@ -252,7 +255,7 @@ impl StandardRequest {
                     && wlength == 0
                     && wvalue <= MAX_ADDRESS =>
             {
-                let address = NonZeroU8::new(wvalue as u8).ok_or(())?;
+                let address = NonZeroU8::new(wvalue as u8);
                 Ok(StandardRequest::SetAddress { address })
             }
 
