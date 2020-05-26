@@ -1,0 +1,11 @@
+pub const GET_STATUS: u8 = 0;
+pub const CLEAR_FEATURE: u8 = 1;
+pub const SET_FEATURE: u8 = 3;
+pub const SET_ADDRESS: u8 = 5;
+pub const GET_DESCRIPTOR: u8 = 6;
+pub const SET_DESCRIPTOR: u8 = 7;
+pub const GET_CONFIGURATION: u8 = 8;
+pub const SET_CONFIGURATION: u8 = 9;
+pub const GET_INTERFACE: u8 = 10;
+pub const SET_INTERFACE: u8 = 11;
+pub const SYNCH_FRAME: u8 = 12;
