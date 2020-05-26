@@ -21,6 +21,13 @@ mod desc;
 pub mod device;
 mod feature;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum State {
+    Default,
+    Address(Address),
+    Configured { address: Address, value: NonZeroU8 },
+}
+
 /// Device address assigned by the host; will be in the range 1..=127
 pub type Address = NonZeroU8;
 
