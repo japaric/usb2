@@ -58,7 +58,7 @@ pub enum Request {
 /// Standard device requests
 ///
 /// See section 9.4 of (USB2)
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum StandardRequest {
     /// CLEAR_FEATURE
     ClearFeature(ClearFeature),
@@ -91,7 +91,7 @@ pub enum StandardRequest {
 }
 
 /// GET_DESCRIPTOR descriptor
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GetDescriptor {
     Configuration { index: u8 },
     Device,
@@ -101,7 +101,7 @@ pub enum GetDescriptor {
 }
 
 /// SET_DESCRIPTOR descriptor
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SetDescriptor {
     Configuration { index: u8 },
     Device,
@@ -113,13 +113,13 @@ const MAX_ADDRESS: u16 = 127;
 /// CLEAR_FEATURE feature selector
 ///
 /// See table 9-6 of (USB2)
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ClearFeature {
     DeviceRemoteWakeup,
     EndpointHalt { endpoint: Endpoint },
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GetStatus {
     Device,
     Endpoint(Endpoint),
@@ -129,7 +129,7 @@ pub enum GetStatus {
 /// SET_FEATURE feature selector
 ///
 /// See table 9-6 of (USB2)
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SetFeature {
     DeviceRemoteWakeup,
     EndpointHalt { endpoint: Endpoint },
@@ -385,7 +385,9 @@ fn windex2interface(windex: u16) -> Result<u8, ()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Direction, Endpoint};
+    use core::num::NonZeroU8;
+
+    use crate::{Direction, Endpoint, GetDescriptor, StandardRequest};
 
     #[test]
     fn endpoint() {
@@ -407,5 +409,70 @@ mod tests {
 
         assert!(crate::windex2endpoint(0x0010).is_err());
         assert!(crate::windex2endpoint(0x0090).is_err());
+    }
+
+    #[test]
+    fn get_descriptor_device() {
+        assert_eq!(
+            StandardRequest::parse(0b1000_0000, 0x06, 0x01_00, 0, 18),
+            Ok(StandardRequest::GetDescriptor {
+                descriptor: GetDescriptor::Device,
+                length: 18
+            })
+        );
+
+        // wrong descriptor index
+        assert!(StandardRequest::parse(0b1000_0000, 0x06, 0x01_01, 0, 18).is_err(),);
+
+        // language ID
+        assert!(StandardRequest::parse(0b1000_0000, 0x06, 0x01_00, 1033, 18).is_err(),);
+    }
+
+    #[test]
+    fn get_descriptor_configuration() {
+        // GET_DESCRIPTOR Configuration 0
+        assert_eq!(
+            StandardRequest::parse(0b1000_0000, 0x06, 0x02_00, 0, 9),
+            Ok(StandardRequest::GetDescriptor {
+                descriptor: GetDescriptor::Configuration { index: 0 },
+                length: 9
+            })
+        );
+
+        assert!(StandardRequest::parse(0b1000_0000, 0x06, 0x02_00, 1033, 9).is_err());
+    }
+
+    #[test]
+    fn set_address() {
+        // SET_ADDRESS 16
+        assert_eq!(
+            StandardRequest::parse(0b0000_0000, 0x05, 0x00_10, 0, 0),
+            Ok(StandardRequest::SetAddress {
+                address: NonZeroU8::new(16)
+            })
+        );
+
+        // has language id but shouldn't
+        assert!(StandardRequest::parse(0b0000_0000, 0x05, 0x00_10, 1033, 0).is_err());
+
+        // length should be zero
+        assert!(StandardRequest::parse(0b0000_0000, 0x05, 0x00_10, 0, 1).is_err());
+    }
+
+    #[test]
+    fn set_configuration() {
+        // SET_CONFIGURATION 1
+        assert_eq!(
+            StandardRequest::parse(0b0000_0000, 0x09, 0x00_01, 0, 0),
+            Ok(StandardRequest::SetConfiguration {
+                value: NonZeroU8::new(1)
+            })
+        );
+
+        // has language id but shouldn't
+        assert!(StandardRequest::parse(0b0000_0000, 0x09, 0x00_01, 1033, 0).is_err());
+
+        // length should be zero
+        assert!(StandardRequest::parse(0b0000_0000, 0x09, 0x00_01, 0, 1).is_err());
     }
 }
