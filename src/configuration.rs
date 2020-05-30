@@ -1,8 +1,12 @@
+//! Configuration descriptors
+
 use core::num::NonZeroU8;
 
-use crate::{desc, StringIndex};
+use crate::desc;
 
 /// Configuration Descriptor
+///
+/// See section 9.6.3 of (USB2)
 #[allow(non_snake_case)]
 #[derive(Clone, Copy)]
 pub struct Descriptor {
@@ -12,11 +16,11 @@ pub struct Descriptor {
     /// etc.) below it
     pub wTotalLength: u16,
     /// Number of interfaces associated to this configuration
-    pub bNumInterfaces: u8,
+    pub bNumInterfaces: NonZeroU8,
     /// Configuration value
     pub bConfigurationValue: NonZeroU8,
     /// Configuration string index
-    pub iConfiguration: Option<StringIndex>,
+    pub iConfiguration: Option<NonZeroU8>,
     /// Attributes
     pub bmAttributes: bmAttributes,
     /// Maximum power (1 ULP = 2 mA)
@@ -34,7 +38,7 @@ impl Descriptor {
             desc::Type::Configuration as u8,
             self.wTotalLength as u8,
             (self.wTotalLength >> 8) as u8,
-            self.bNumInterfaces,
+            self.bNumInterfaces.get(),
             self.bConfigurationValue.get(),
             self.iConfiguration.map(|nz| nz.get()).unwrap_or(0),
             (1 << 7)

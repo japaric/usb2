@@ -1,6 +1,8 @@
+//! Device descriptors
+
 use core::num::NonZeroU8;
 
-use crate::{desc, StringIndex};
+use crate::desc;
 
 /// Device descriptor
 pub struct Descriptor {
@@ -22,11 +24,11 @@ pub struct Descriptor {
     /// Device release number
     pub bcdDevice: u16,
     /// Manufacturer string index
-    pub iManufacturer: Option<StringIndex>,
+    pub iManufacturer: Option<NonZeroU8>,
     /// Product string index
-    pub iProduct: Option<StringIndex>,
+    pub iProduct: Option<NonZeroU8>,
     /// Serial number string index
-    pub iSerialNumber: Option<StringIndex>,
+    pub iSerialNumber: Option<NonZeroU8>,
     /// Number of configurations
     pub bNumConfigurations: NonZeroU8,
 }

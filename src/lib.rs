@@ -6,7 +6,7 @@
 
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-// #![deny(missing_docs)] // TODO
+#![deny(missing_docs)]
 #![no_std]
 
 use core::num::NonZeroU8;
@@ -20,23 +20,33 @@ pub mod configuration;
 mod desc;
 pub mod device;
 mod feature;
+pub mod interface;
 
+/// The state of the USB device
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum State {
+    /// The default state
     Default,
+    /// The address-ed state
     Address(Address),
-    Configured { address: Address, value: NonZeroU8 },
+    /// The configured state
+    Configured {
+        /// The address of the device
+        address: Address,
+        /// The configuration value
+        value: NonZeroU8,
+    },
 }
 
 /// Device address assigned by the host; will be in the range 1..=127
 pub type Address = NonZeroU8;
 
-pub type StringIndex = NonZeroU8;
-
 /// Endpoint address
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Endpoint {
+    /// Endpoint direction
     pub direction: Direction,
+    /// Endpoint number
     pub number: u8,
 }
 
@@ -66,46 +76,98 @@ pub enum StandardRequest {
     GetConfiguration,
     /// GET_DESCRIPTOR
     GetDescriptor {
+        /// Requested descriptor
         descriptor: GetDescriptor,
+        /// Maximum number of bytes to return
         length: u16,
     },
-    /// GET_INTERFACE
-    GetInterface { interface: u8 },
+    /// GET_INTERFACE -- returns the alternate setting of the specified interface
+    GetInterface {
+        /// The interface
+        interface: u8,
+    },
     /// GET_STATUS
     GetStatus(GetStatus),
     /// SET_ADDRESS
-    SetAddress { address: Option<Address> },
+    SetAddress {
+        /// The new address -- `None` is used to return to the `Default` state
+        address: Option<Address>,
+    },
     /// SET_CONFIGURATION
-    SetConfiguration { value: Option<NonZeroU8> },
+    SetConfiguration {
+        /// The new configuration -- `None` is used to return to the `Address` state
+        value: Option<NonZeroU8>,
+    },
     /// SET_DESCRIPTOR
     SetDescriptor {
+        /// The descriptor to set or change
         descriptor: SetDescriptor,
+        /// The length of the descriptor
         length: u16,
     },
     /// SET_FEATURE
     SetFeature(SetFeature),
-    /// SET_INTERFACE
-    SetInterface { interface: u8, alternate: u8 },
+    /// SET_INTERFACE -- changes the alternate setting of the specified interface
+    SetInterface {
+        /// The interface to modify
+        interface: u8,
+        /// The new alternate setting
+        alternate: u8,
+    },
     /// SYNCH_FRAME
-    SynchFrame { endpoint: Endpoint },
+    SynchFrame {
+        /// The endpoint this synchronization frame is for
+        endpoint: Endpoint,
+    },
 }
 
 /// GET_DESCRIPTOR descriptor
+///
+/// See section 9.4.3 and table 9-5 of (USB2)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GetDescriptor {
-    Configuration { index: u8 },
+    /// Configuration descriptor
+    Configuration {
+        /// Configuration descriptor index (`0..bNumConfigurations`)
+        index: u8,
+    },
+    /// Device descriptor
     Device,
+    /// Device qualifier descriptor
     DeviceQualifier,
-    OtherSpeedConfiguration { index: u8 },
-    String { index: u8, lang_id: u16 },
+    /// Other speed configuration descriptor
+    OtherSpeedConfiguration {
+        /// Other speed configuration descriptor index
+        index: u8,
+    },
+    /// String descriptor
+    String {
+        /// String descriptor index
+        index: u8,
+        /// Language identifier
+        lang_id: u16,
+    },
 }
 
 /// SET_DESCRIPTOR descriptor
+///
+/// See section 9.4.8 and table 9-5 of (USB2)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SetDescriptor {
-    Configuration { index: u8 },
+    /// Configuration descriptor
+    Configuration {
+        /// Configuration descriptor index (`0..bNumConfigurations`)
+        index: u8,
+    },
+    /// Device descriptor
     Device,
-    String { index: u8, lang_id: u16 },
+    /// String descriptor
+    String {
+        /// String descriptor index
+        index: u8,
+        /// Language identifier
+        lang_id: u16,
+    },
 }
 
 const MAX_ADDRESS: u16 = 127;
@@ -115,14 +177,22 @@ const MAX_ADDRESS: u16 = 127;
 /// See table 9-6 of (USB2)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ClearFeature {
+    /// Disables the device remote wake-up feature
     DeviceRemoteWakeup,
-    EndpointHalt { endpoint: Endpoint },
+    /// "Unhalts" the specified endpoint
+    EndpointHalt(Endpoint),
 }
 
+/// Argument of the GET_STATUS request
+///
+/// See section 9.4.5 of (USB2)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GetStatus {
+    /// Device status
     Device,
+    /// Endpoint status
     Endpoint(Endpoint),
+    /// Interface status
     Interface(u8),
 }
 
@@ -131,9 +201,12 @@ pub enum GetStatus {
 /// See table 9-6 of (USB2)
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SetFeature {
+    /// Enables the device remote wake-up feature
     DeviceRemoteWakeup,
-    EndpointHalt { endpoint: Endpoint },
-    TestMode { test: Test },
+    /// Halts the specified endpoint
+    EndpointHalt(Endpoint),
+    /// Enables the specified test mode
+    TestMode(Test),
 }
 
 repr!(u8,
@@ -185,9 +258,9 @@ impl StandardRequest {
                         ClearFeature::DeviceRemoteWakeup,
                     ))
                 } else if wvalue == feature::ENDPOINT_HALT && recipient == Recipient::Endpoint {
-                    Ok(StandardRequest::ClearFeature(ClearFeature::EndpointHalt {
-                        endpoint: windex2endpoint(windex)?,
-                    }))
+                    Ok(StandardRequest::ClearFeature(ClearFeature::EndpointHalt(
+                        windex2endpoint(windex)?,
+                    )))
                 } else {
                     Err(())
                 }
@@ -315,13 +388,9 @@ impl StandardRequest {
                     && recipient == Recipient::Device
                     && windex as u8 == 0
                 {
-                    SetFeature::TestMode {
-                        test: Test::_from((windex >> 8) as u8).ok_or(())?,
-                    }
+                    SetFeature::TestMode(Test::_from((windex >> 8) as u8).ok_or(())?)
                 } else if wvalue == feature::ENDPOINT_HALT && recipient == Recipient::Endpoint {
-                    SetFeature::EndpointHalt {
-                        endpoint: windex2endpoint(windex)?,
-                    }
+                    SetFeature::EndpointHalt(windex2endpoint(windex)?)
                 } else {
                     return Err(());
                 };
