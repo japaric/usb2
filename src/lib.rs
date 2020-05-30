@@ -19,6 +19,7 @@ mod brequest;
 pub mod configuration;
 mod desc;
 pub mod device;
+pub mod endpoint;
 mod feature;
 pub mod interface;
 
@@ -46,17 +47,24 @@ pub type Address = NonZeroU8;
 pub struct Endpoint {
     /// Endpoint direction
     pub direction: Direction,
+
     /// Endpoint number
     pub number: u8,
+}
+
+impl Endpoint {
+    fn byte(&self) -> u8 {
+        (self.number & 0b1111) | (self.direction as u8) << 7
+    }
 }
 
 /// Direction from the point of view of the host
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Direction {
-    /// Device to Host
-    In,
     /// Host to Device
-    Out,
+    Out = 0,
+    /// Device to Host
+    In = 1,
 }
 
 #[cfg(TODO)]
