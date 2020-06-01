@@ -1,5 +1,7 @@
 //! Interface descriptors
 
+use core::num::NonZeroU8;
+
 use crate::desc;
 
 /// Interface descriptor
@@ -21,7 +23,7 @@ pub struct Descriptor {
     /// Interface protocol
     pub bInterfaceProtocol: u8,
     /// Interface string descriptor index
-    pub iInterface: u8,
+    pub iInterface: Option<NonZeroU8>,
 }
 
 impl Descriptor {
@@ -39,7 +41,7 @@ impl Descriptor {
             self.bInterfaceClass,
             self.bInterfaceSubClass,
             self.bInterfaceProtocol,
-            self.iInterface,
+            self.iInterface.map(|nz| nz.get()).unwrap_or(0),
         ]
     }
 }

@@ -3,6 +3,11 @@
 //! # References
 //!
 //! - (USB2) Universal Serial Bus Specification Revision 2.0 (April 27, 2000)
+//! - (USBCDC1.2) Universal Serial Bus Class Definitions for Communications Devices 1.2 (Errata 1)
+//! (November 3, 2010)
+//! - (USBIAD) Interface Association Descriptors Engineering Change Notice
+//! - (USBPTSN1.2) Universal Serial Bus Communication Class Subclass Specification for PTSN Devices
+//!   Revision 1.2 (February 9, 2007)
 
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
@@ -11,16 +16,23 @@
 
 use core::num::NonZeroU8;
 
+use crate::{
+    bmrequesttype::{bmRequestType, Recipient},
+    cdc::acm,
+};
+
 #[macro_use]
 mod macros;
 
 mod bmrequesttype;
 mod brequest;
+pub mod cdc;
 pub mod configuration;
 mod desc;
 pub mod device;
 pub mod endpoint;
 mod feature;
+pub mod ia;
 pub mod interface;
 
 /// The state of the USB device
@@ -67,10 +79,38 @@ pub enum Direction {
     In = 1,
 }
 
-#[cfg(TODO)]
+/// Control endpoint requests
 pub enum Request {
+    /// Standard device request
     Standard(StandardRequest),
-    // TODO Class-specific requests
+    /// CDC Abstract Control Model interface request
+    Acm(acm::Request),
+}
+
+impl Request {
+    /// Parses a control endpoint request
+    pub fn parse(
+        bmrequesttype: u8,
+        brequest: u8,
+        wvalue: u16,
+        windex: u16,
+        wlength: u16,
+    ) -> Result<Self, ()> {
+        use bmrequesttype::Type;
+
+        let bmrequesttype = bmRequestType::parse(bmrequesttype)?;
+
+        match bmrequesttype.ty {
+            Type::Standard => {
+                StandardRequest::parse2(bmrequesttype, brequest, wvalue, windex, wlength)
+                    .map(Request::Standard)
+            }
+
+            Type::Class => acm::Request::parse2(bmrequesttype, brequest, wvalue, windex, wlength)
+                .map(Request::Acm),
+            _ => Err(()),
+        }
+    }
 }
 
 /// Standard device requests
@@ -241,21 +281,30 @@ impl StandardRequest {
         windex: u16,
         wlength: u16,
     ) -> Result<Self, ()> {
-        use bmrequesttype::{bmRequestType, Direction, Recipient};
+        let bmrequesttype = bmRequestType::parse(bmrequesttype)?;
 
-        let bmRequestType {
-            direction,
-            recipient,
-            ty,
-        } = bmRequestType::parse(bmrequesttype)?;
-        if ty != bmrequesttype::Type::Standard {
+        if bmrequesttype.ty != bmrequesttype::Type::Standard {
             return Err(());
         }
 
+        Self::parse2(bmrequesttype, brequest, wvalue, windex, wlength)
+    }
+
+    fn parse2(
+        bmRequestType {
+            direction,
+            recipient,
+            ..
+        }: bmRequestType,
+        brequest: u8,
+        wvalue: u16,
+        windex: u16,
+        wlength: u16,
+    ) -> Result<Self, ()> {
         // See table 9-3 of (USB2)
         match (brequest, direction) {
             // see section 9.4.1 of (USB2)
-            (brequest::CLEAR_FEATURE, Direction::HostToDevice)
+            (brequest::CLEAR_FEATURE, bmrequesttype::Direction::HostToDevice)
                 if recipient != Recipient::Other && wlength == 0 =>
             {
                 if wvalue == feature::DEVICE_REMOTE_WAKEUP
@@ -275,14 +324,14 @@ impl StandardRequest {
             }
 
             // see section 9.4.2 of (USB2)
-            (brequest::GET_CONFIGURATION, Direction::DeviceToHost)
+            (brequest::GET_CONFIGURATION, bmrequesttype::Direction::DeviceToHost)
                 if recipient == Recipient::Device && wvalue == 0 && windex == 0 && wlength == 1 =>
             {
                 Ok(StandardRequest::GetConfiguration)
             }
 
             // see section 9.4.3 of (USB2)
-            (brequest::GET_DESCRIPTOR, Direction::DeviceToHost)
+            (brequest::GET_DESCRIPTOR, bmrequesttype::Direction::DeviceToHost)
                 if recipient == Recipient::Device =>
             {
                 let desc_ty = (wvalue >> 8) as u8;
@@ -316,7 +365,7 @@ impl StandardRequest {
             }
 
             // see section 9.4.4 of (USB2)
-            (brequest::GET_INTERFACE, Direction::DeviceToHost)
+            (brequest::GET_INTERFACE, bmrequesttype::Direction::DeviceToHost)
                 if recipient == Recipient::Interface && wvalue == 0 && wlength == 1 =>
             {
                 Ok(StandardRequest::GetInterface {
@@ -325,7 +374,9 @@ impl StandardRequest {
             }
 
             // see section 9.4.5 of (USB2)
-            (brequest::GET_STATUS, Direction::DeviceToHost) if wvalue == 0 && wlength == 2 => {
+            (brequest::GET_STATUS, bmrequesttype::Direction::DeviceToHost)
+                if wvalue == 0 && wlength == 2 =>
+            {
                 let status = match recipient {
                     Recipient::Device if windex == 0 => GetStatus::Device,
                     Recipient::Endpoint => GetStatus::Endpoint(windex2endpoint(windex)?),
@@ -337,7 +388,7 @@ impl StandardRequest {
             }
 
             // see section 9.4.6 of (USB2)
-            (brequest::SET_ADDRESS, Direction::HostToDevice)
+            (brequest::SET_ADDRESS, bmrequesttype::Direction::HostToDevice)
                 if recipient == Recipient::Device
                     && windex == 0
                     && wlength == 0
@@ -348,7 +399,7 @@ impl StandardRequest {
             }
 
             // see section 9.4.7 of (USB2)
-            (brequest::SET_CONFIGURATION, Direction::HostToDevice)
+            (brequest::SET_CONFIGURATION, bmrequesttype::Direction::HostToDevice)
                 if recipient == Recipient::Device
                     && windex == 0
                     && wlength == 0
@@ -359,7 +410,7 @@ impl StandardRequest {
                 })
             }
 
-            (brequest::SET_DESCRIPTOR, Direction::HostToDevice)
+            (brequest::SET_DESCRIPTOR, bmrequesttype::Direction::HostToDevice)
                 if recipient == Recipient::Device =>
             {
                 let desc_ty = (wvalue >> 8) as u8;
@@ -386,7 +437,7 @@ impl StandardRequest {
                 })
             }
 
-            (brequest::SET_FEATURE, Direction::HostToDevice) if wlength == 0 => {
+            (brequest::SET_FEATURE, bmrequesttype::Direction::HostToDevice) if wlength == 0 => {
                 let feature = if wvalue == feature::DEVICE_REMOTE_WAKEUP
                     && recipient == Recipient::Device
                     && windex == 0
@@ -406,7 +457,7 @@ impl StandardRequest {
                 Ok(StandardRequest::SetFeature(feature))
             }
 
-            (brequest::SET_INTERFACE, Direction::HostToDevice)
+            (brequest::SET_INTERFACE, bmrequesttype::Direction::HostToDevice)
                 if recipient == Recipient::Interface && wlength == 0 =>
             {
                 let interface = windex2interface(windex)?;
@@ -418,7 +469,7 @@ impl StandardRequest {
                 })
             }
 
-            (brequest::SYNCH_FRAME, Direction::DeviceToHost)
+            (brequest::SYNCH_FRAME, bmrequesttype::Direction::DeviceToHost)
                 if recipient == Recipient::Endpoint && wvalue == 0 && wlength == 2 =>
             {
                 Ok(StandardRequest::SynchFrame {

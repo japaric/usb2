@@ -17,4 +17,6 @@ repr!(u8,
     OtherSpeedConfiguration = 7,
     /// Interface power descriptor type
     InterfacePower = 8,
+    /// Interface association descriptor type
+    InterfaceAssociation = 11,
 });

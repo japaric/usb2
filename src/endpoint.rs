@@ -8,31 +8,53 @@ pub struct Descriptor {
     // pub bDescriptorType: u8,
     /// Endpoint address
     pub bEndpointAddress: Endpoint,
-    /// Attributes
-    pub bmAttributes: bmAttributes,
-    /// Maximum packet size
-    pub wMaxPacketSize: wMaxPacketSize,
+    /// Endpoint type
+    pub ty: Type,
+    /// Maximum packet size (must be less than `1 << 11`)
+    pub max_packet_size: u16,
     /// Polling interval
     pub bInterval: u8,
 }
 
-/// Endpoint attributes
-#[allow(non_camel_case_types)]
+/// End point type
 #[derive(Clone, Copy)]
-pub enum bmAttributes {
+pub enum Type {
     /// Bulk endpoint
     Bulk,
+
     /// Control endpoint
     Control,
+
     /// Interrupt endpoint
-    Interrupt,
+    Interrupt {
+        /// Transactions per microframe
+        transactions_per_microframe: Transactions,
+    },
+
     /// Isochronous endpoint
     Isochronous {
         /// Synchronization type
         synchronization_type: SynchronizationType,
         /// Usage type
         usage_type: UsageType,
+        /// Transactions per microframe
+        transactions_per_microframe: Transactions,
     },
+}
+
+impl Type {
+    fn bmAttributes(&self) -> u8 {
+        match self {
+            Type::Bulk => 0b10,
+            Type::Control => 0b00,
+            Type::Interrupt { .. } => 0b11,
+            Type::Isochronous {
+                synchronization_type,
+                usage_type,
+                ..
+            } => 0b01 | (*synchronization_type as u8) << 2 | (*usage_type as u8) << 4,
+        }
+    }
 }
 
 /// Synchronization type
@@ -59,39 +81,6 @@ pub enum UsageType {
     ImplicitFeedbackDataEndpoint = 0b10,
 }
 
-impl bmAttributes {
-    fn byte(&self) -> u8 {
-        match self {
-            bmAttributes::Bulk => 0b10,
-            bmAttributes::Control => 0b00,
-            bmAttributes::Interrupt => 0b11,
-            bmAttributes::Isochronous {
-                synchronization_type,
-                usage_type,
-            } => 0b01 | (*synchronization_type as u8) << 2 | (*usage_type as u8) << 4,
-        }
-    }
-}
-
-/// Maximum packet size
-#[allow(non_camel_case_types)]
-#[derive(Clone, Copy)]
-pub enum wMaxPacketSize {
-    /// Bulk or control endpoint
-    BulkControl {
-        /// Must be less than `1 << 11`
-        size: u16,
-    },
-
-    /// Isochronous or interrupt endpoint
-    IsochronousInterrupt {
-        /// Must be less than `1 << 11`
-        size: u16,
-        /// Transactions per microframe
-        transactions_per_microframe: Transactions,
-    },
-}
-
 /// Transactions per microframe
 #[derive(Clone, Copy)]
 pub enum Transactions {
@@ -103,30 +92,31 @@ pub enum Transactions {
     _3 = 0b10,
 }
 
-impl wMaxPacketSize {
-    fn word(&self) -> u16 {
-        match self {
-            wMaxPacketSize::BulkControl { size } => *size & ((1 << 11) - 1),
-
-            wMaxPacketSize::IsochronousInterrupt {
-                size,
-                transactions_per_microframe,
-            } => (*size & ((1 << 11) - 1)) | ((*transactions_per_microframe as u16) << 11),
-        }
-    }
-}
 impl Descriptor {
     /// The size of this descriptor on the wire
     pub const SIZE: u8 = 7;
 
     /// Returns the wire representation of this descriptor
     pub fn bytes(&self) -> [u8; Self::SIZE as usize] {
-        let word = self.wMaxPacketSize.word();
+        let mut word = self.max_packet_size & ((1 << 11) - 1);
+        match self.ty {
+            Type::Interrupt {
+                transactions_per_microframe,
+            }
+            | Type::Isochronous {
+                transactions_per_microframe,
+                ..
+            } => {
+                word |= (transactions_per_microframe as u16) << 11;
+            }
+            _ => {}
+        }
+
         [
             Self::SIZE,
             desc::Type::Endpoint as u8,
             self.bEndpointAddress.byte(),
-            self.bmAttributes.byte(),
+            self.ty.bmAttributes(),
             word as u8,
             (word >> 8) as u8,
             self.bInterval,
