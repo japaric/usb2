@@ -35,45 +35,63 @@ pub struct LineCoding {
     pub bDataBits: bDataBits,
 }
 
+impl LineCoding {
+    /// The size of this structure on the wire
+    pub const SIZE: u8 = 7;
+
+    /// Returns the wire representation of this structure
+    pub fn bytes(&self) -> [u8; Self::SIZE as usize] {
+        [
+            self.dwDTERate as u8,
+            (self.dwDTERate >> 8) as u8,
+            (self.dwDTERate >> 16) as u8,
+            (self.dwDTERate >> 24) as u8,
+            self.bCharFormat as u8,
+            self.bParityType as u8,
+            self.bDataBits as u8,
+        ]
+    }
+}
+
 /// Stop bits
 #[derive(Clone, Copy)]
 pub enum bCharFormat {
     /// 1 stop bit
-    Stop1,
+    Stop1 = 0,
     /// 1.5 stop bit
-    Stop1_5,
+    Stop1_5 = 1,
     /// 2 stop bits
-    Stop2,
+    Stop2 = 2,
 }
 
 /// Parity
 #[derive(Clone, Copy)]
 pub enum bParityType {
     /// None
-    None,
+    None = 0,
     /// Odd
-    Odd,
+    Odd = 1,
     /// Even
-    Even,
+    Even = 2,
     /// Mark
-    Mark,
+    Mark = 3,
     /// Space
-    Space,
+    Space = 4,
 }
 
 /// Data bits
 #[derive(Clone, Copy)]
 pub enum bDataBits {
     /// 5 bits
-    _5,
+    _5 = 5,
     /// 6 bits
-    _6,
+    _6 = 6,
     /// 7 bits
-    _7,
+    _7 = 7,
     /// 8 bits
-    _8,
+    _8 = 8,
     /// 16 bits
-    _16,
+    _16 = 16,
 }
 
 /// SET_CONTROL_LINE_STATE request
