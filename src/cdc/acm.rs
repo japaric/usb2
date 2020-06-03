@@ -4,6 +4,11 @@ use crate::bmrequesttype::{bmRequestType, Direction, Recipient, Type};
 
 /// ACM request
 pub enum Request {
+    /// GET_LINE_CODING
+    GetLineCoding {
+        /// Target interface
+        interface: u8,
+    },
     /// SET_LINE_CODING
     SetLineCoding {
         /// Target interface
@@ -14,6 +19,7 @@ pub enum Request {
 }
 
 const SET_LINE_CODING: u8 = 0x20;
+const GET_LINE_CODING: u8 = 0x21;
 const SET_CONTROL_LINE_STATE: u8 = 0x22;
 
 /// Line Coding structure
@@ -116,6 +122,14 @@ impl Request {
                 let interface = crate::windex2interface(windex)?;
 
                 Ok(Request::SetLineCoding { interface })
+            }
+
+            (GET_LINE_CODING, Direction::DeviceToHost)
+                if recipient == Recipient::Interface && wvalue == 0 && wlength == 7 =>
+            {
+                let interface = crate::windex2interface(windex)?;
+
+                Ok(Request::GetLineCoding { interface })
             }
 
             (SET_CONTROL_LINE_STATE, Direction::HostToDevice)
