@@ -22,6 +22,75 @@ const SET_LINE_CODING: u8 = 0x20;
 const GET_LINE_CODING: u8 = 0x21;
 const SET_CONTROL_LINE_STATE: u8 = 0x22;
 
+/// Serial state notification
+pub struct SerialState {
+    /// Interface index
+    pub interface: u8,
+    /// Received data has been discarded due to overrun in the device.
+    pub bOverRun: bool,
+    /// A parity error has occurred
+    pub bParity: bool,
+    /// A framing error has occurred
+    pub bFraming: bool,
+    /// State of ring signal detection of the device.
+    pub bRingSignal: bool,
+    /// State of break detection mechanism of the device
+    pub bBreak: bool,
+    /// State of transmission carrier. This signal corresponds to V.24 signal 106 and RS-232 signal
+    /// DSR
+    pub bTxCarrier: bool,
+    /// State of receiver carrier detection mechanism of device. This signal corresponds to V.24
+    /// signal 109 and RS-232 signal DCD
+    pub bRxCarrier: bool,
+}
+
+impl SerialState {
+    /// Size of this notification on the wire in bytes
+    pub const SIZE: u8 = 10;
+
+    /// Returns the wire representation of this notification
+    pub fn bytes(&self) -> [u8; Self::SIZE as usize] {
+        const SERIAL_STATE: u8 = 0x20;
+
+        let mut bitmap = 0;
+        if self.bOverRun {
+            bitmap |= 1 << 6;
+        }
+        if self.bParity {
+            bitmap |= 1 << 5;
+        }
+        if self.bFraming {
+            bitmap |= 1 << 4;
+        }
+        if self.bRingSignal {
+            bitmap |= 1 << 3;
+        }
+        if self.bBreak {
+            bitmap |= 1 << 2;
+        }
+        if self.bTxCarrier {
+            bitmap |= 1 << 1;
+        }
+        if self.bRxCarrier {
+            bitmap |= 1 << 0;
+        }
+        [
+            // header
+            0b1010_0001,  // bmRequestType
+            SERIAL_STATE, // bNotification
+            0,
+            0, // wValue
+            self.interface,
+            0, // wIndex
+            2,
+            0, // wLength
+            // data
+            bitmap,
+            0,
+        ]
+    }
+}
+
 /// Line Coding structure
 #[derive(Clone, Copy)]
 pub struct LineCoding {
@@ -99,7 +168,7 @@ pub struct SetControlLineState {
     /// Target interface
     pub interface: u8,
     /// DTE is present
-    pub dte_present: bool,
+    pub dtr: bool,
     /// Carrier control for half-duplex modems. `true` = activate RTS carrier; `false` = deactivate
     pub rts: bool,
 }
@@ -158,13 +227,13 @@ impl Request {
                     return Err(());
                 }
 
-                let dte_present = wvalue & 1 != 0;
+                let dtr = wvalue & 1 != 0;
                 let rts = wvalue & (1 << 1) != 0;
 
                 Ok(Request::SetControlLineState(SetControlLineState {
                     interface,
                     rts,
-                    dte_present,
+                    dtr,
                 }))
             }
 
