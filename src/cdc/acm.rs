@@ -3,19 +3,28 @@
 use crate::bmrequesttype::{bmRequestType, Direction, Recipient, Type};
 
 /// ACM request
-pub enum Request {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Request {
+    /// Interface index
+    pub interface: u8,
+    /// Kind of request
+    pub kind: Kind,
+}
+
+/// ACM Request kind
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Kind {
     /// GET_LINE_CODING
-    GetLineCoding {
-        /// Target interface
-        interface: u8,
-    },
+    GetLineCoding,
     /// SET_LINE_CODING
-    SetLineCoding {
-        /// Target interface
-        interface: u8,
-    },
+    SetLineCoding,
     /// SET_CONTROL_LINE_STATE
-    SetControlLineState(SetControlLineState),
+    SetControlLineState {
+        /// DTE is present
+        dtr: bool,
+        /// Carrier control for half-duplex modems. `true` = activate RTS carrier; `false` = deactivate
+        rts: bool,
+    },
 }
 
 const SET_LINE_CODING: u8 = 0x20;
@@ -163,16 +172,6 @@ pub enum bDataBits {
     _16 = 16,
 }
 
-/// SET_CONTROL_LINE_STATE request
-pub struct SetControlLineState {
-    /// Target interface
-    pub interface: u8,
-    /// DTE is present
-    pub dtr: bool,
-    /// Carrier control for half-duplex modems. `true` = activate RTS carrier; `false` = deactivate
-    pub rts: bool,
-}
-
 impl Request {
     /// Parses an ACM request
     pub fn parse(
@@ -195,6 +194,7 @@ impl Request {
         bmRequestType {
             direction,
             recipient,
+            // ty must be `Class`
             ..
         }: bmRequestType,
         brequest: u8,
@@ -208,7 +208,10 @@ impl Request {
             {
                 let interface = crate::windex2interface(windex)?;
 
-                Ok(Request::SetLineCoding { interface })
+                Ok(Request {
+                    interface,
+                    kind: Kind::SetLineCoding,
+                })
             }
 
             (GET_LINE_CODING, Direction::DeviceToHost)
@@ -216,7 +219,10 @@ impl Request {
             {
                 let interface = crate::windex2interface(windex)?;
 
-                Ok(Request::GetLineCoding { interface })
+                Ok(Request {
+                    interface,
+                    kind: Kind::GetLineCoding,
+                })
             }
 
             (SET_CONTROL_LINE_STATE, Direction::HostToDevice)
@@ -230,11 +236,10 @@ impl Request {
                 let dtr = wvalue & 1 != 0;
                 let rts = wvalue & (1 << 1) != 0;
 
-                Ok(Request::SetControlLineState(SetControlLineState {
+                Ok(Request {
                     interface,
-                    rts,
-                    dtr,
-                }))
+                    kind: Kind::SetControlLineState { rts, dtr },
+                })
             }
 
             _ => Err(()),

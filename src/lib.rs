@@ -8,6 +8,7 @@
 //! - (USBIAD) Interface Association Descriptors Engineering Change Notice
 //! - (USBPTSN1.2) Universal Serial Bus Communication Class Subclass Specification for PTSN Devices
 //!   Revision 1.2 (February 9, 2007)
+//! - (HID1.11) Device Class Definition for Human Interface Devices (HID) version 1.11 (6/27/01)
 
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
@@ -32,6 +33,7 @@ mod desc;
 pub mod device;
 pub mod endpoint;
 mod feature;
+pub mod hid;
 pub mod ia;
 pub mod interface;
 
@@ -80,11 +82,14 @@ pub enum Direction {
 }
 
 /// Control endpoint requests
+#[derive(Debug, PartialEq)]
 pub enum Request {
     /// Standard device request
     Standard(StandardRequest),
     /// CDC Abstract Control Model interface request
     Acm(acm::Request),
+    /// Human Interface Device (HID) request
+    Hid(hid::Request),
 }
 
 impl Request {
@@ -104,10 +109,19 @@ impl Request {
             Type::Standard => {
                 StandardRequest::parse2(bmrequesttype, brequest, wvalue, windex, wlength)
                     .map(Request::Standard)
+                    .or_else(|_| {
+                        hid::Request::parse2(bmrequesttype, brequest, wvalue, windex, wlength)
+                            .map(Request::Hid)
+                    })
             }
 
             Type::Class => acm::Request::parse2(bmrequesttype, brequest, wvalue, windex, wlength)
-                .map(Request::Acm),
+                .map(Request::Acm)
+                .or_else(|_| {
+                    hid::Request::parse2(bmrequesttype, brequest, wvalue, windex, wlength)
+                        .map(Request::Hid)
+                }),
+
             _ => Err(()),
         }
     }
@@ -294,6 +308,7 @@ impl StandardRequest {
         bmRequestType {
             direction,
             recipient,
+            // ty must be `Standard`
             ..
         }: bmRequestType,
         brequest: u8,

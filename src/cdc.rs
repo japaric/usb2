@@ -7,7 +7,7 @@ pub mod call;
 pub mod header;
 pub mod union;
 
-/// Communication Device
+/// Communication Device Class
 #[derive(Clone, Copy)]
 pub enum Class {
     /// Communications Interface Class
