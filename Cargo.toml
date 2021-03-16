@@ -1,7 +1,11 @@
 [package]
 authors = ["Jorge Aparicio <jorge@japaric.io>"]
+categories = ["embedded", "no-std"]
+description = "USB 2.0 data types and packet parser"
 edition = "2018"
+keywords = ["USB"]
 license = "MIT OR Apache-2.0"
 name = "usb2"
-publish = false
-version = "0.0.0"
+readme = "README.md"
+repository = "https://github.com/japaric/usb2"
+version = "0.0.1"

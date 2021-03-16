@@ -1,6 +1,9 @@
 # `usb2`
 
-> USB 2.0 data types
+> (Opinionated) USB 2.0 data types and packet parser
+
+This library does not contain any I/O functionality. If you are looking for a device-side
+library check out [`usb-device`](https://crates.io/crates/usb-device).
 
 ## License
 
